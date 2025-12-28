@@ -1,18 +1,24 @@
 
 import React from 'react';
+import { Language } from '../types';
+import { translations } from '../i18n';
 
-const Footer: React.FC = () => {
+interface FooterProps {
+  lang: Language;
+}
+
+const Footer: React.FC<FooterProps> = ({ lang }) => {
+  const t = translations[lang];
   return (
-    <footer className="py-4 px-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 mt-auto">
-      <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="text-slate-500 dark:text-slate-400 text-xs font-medium tracking-wide">
-          © 2025 北美生活顾问 · North American Life Advisor
+    <footer className="w-full py-4 px-6 mt-auto">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-slate-400 dark:text-slate-500">
+        <div className="text-[11px] font-bold uppercase tracking-widest">
+          {t.copyright}
         </div>
-        <div className="flex flex-wrap justify-center md:justify-end gap-x-8 gap-y-2">
-          <a href="#" className="text-slate-400 hover:text-blue-600 dark:hover:text-white text-xs transition-colors font-medium">关于我们 About</a>
-          <a href="#" className="text-slate-400 hover:text-blue-600 dark:hover:text-white text-xs transition-colors font-medium">使用条款 Terms</a>
-          <a href="#" className="text-slate-400 hover:text-blue-600 dark:hover:text-white text-xs transition-colors font-medium">隐私政策 Privacy</a>
-          <a href="#" className="text-slate-400 hover:text-blue-600 dark:hover:text-white text-xs transition-colors font-medium">帮助中心 Help</a>
+        <div className="flex gap-6">
+          <a href="#" className="text-[12px] font-medium hover:text-slate-900 dark:hover:text-white transition-colors">{t.about}</a>
+          <a href="#" className="text-[12px] font-medium hover:text-slate-900 dark:hover:text-white transition-colors">{t.terms}</a>
+          <a href="#" className="text-[12px] font-medium hover:text-slate-900 dark:hover:text-white transition-colors">{t.privacy}</a>
         </div>
       </div>
     </footer>

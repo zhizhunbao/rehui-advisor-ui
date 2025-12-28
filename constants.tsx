@@ -57,11 +57,11 @@ export const getLocalizedTopics = (lang: Language): Topic[] => {
     },
     {
       id: 'insurance',
-      title: isZh ? '保险理财' : 'Insurance',
-      description: isZh ? '医疗、人寿与财产保险专业解读' : 'Medical, life, and property insurance',
+      title: isZh ? '全能保险' : 'Insurance Advisor',
+      description: isZh ? '医疗、汽车、房屋及人寿保险专业解读' : 'Expert guide for medical, auto, and home insurance',
       icon: 'ShieldCheck',
       color: 'bg-cyan-500',
-      prompt: isZh ? '北美的保险系统非常复杂，请为我介绍基础的医疗保险选择。' : 'NA insurance is complex. Please introduce basic medical options.'
+      prompt: isZh ? '我想咨询北美保险（如医疗、汽车、房屋或人寿保险），请帮我分析不同险种的必要性及选择策略。' : 'I want to inquire about insurance in NA (Medical, Auto, Home, or Life). Please help me analyze the necessity and selection strategies.'
     },
     {
       id: 'education',

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,16 +14,12 @@
                     colors: {
                         gpt: {
                             sidebar: {
-                                light: '#f9f9f9',
+                                light: '#f9f9fb',
                                 dark: '#171717'
                             },
                             bg: {
                                 light: '#ffffff',
                                 dark: '#212121'
-                            },
-                            userBubble: {
-                                light: '#f4f4f4',
-                                dark: '#2f2f2f'
                             }
                         }
                     }
@@ -31,13 +28,21 @@
         }
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         
+        /* Smooth Global Transition for all layout properties */
+        * {
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.15s ease, transform 0.3s ease, padding 0.3s ease, margin 0.3s ease;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
             background-color: #ffffff;
             color: #0d0d0d;
             margin: 0;
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden;
+            line-height: 1.5; /* Consistent baseline */
         }
         
         .dark body {
@@ -45,30 +50,39 @@
             color: #ececec;
         }
 
+        /* Prevent layout shift on specific elements */
+        .stable-layout {
+            will-change: height, opacity;
+        }
+
         /* GPT Style Scrollbars */
         ::-webkit-scrollbar {
-            width: 8px;
+            width: 5px;
         }
         ::-webkit-scrollbar-track {
             background: transparent;
         }
         ::-webkit-scrollbar-thumb {
-            background: #d9d9e3;
-            border-radius: 10px;
+            background: #e2e8f0;
+            border-radius: 20px;
         }
         .dark ::-webkit-scrollbar-thumb {
-            background: #565869;
+            background: #2d2d2d;
         }
         
-        /* Prose customization for compactness */
         .prose { 
             max-width: none; 
             font-size: 15px;
             line-height: 1.6;
         }
-        .prose p { margin-top: 0.5em; margin-bottom: 0.5em; }
-        .prose ul, .prose ol { margin-top: 0.5em; margin-bottom: 0.5em; }
-        .prose h1, .prose h2, .prose h3 { margin-top: 1em; margin-bottom: 0.5em; }
+        
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(4px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        .animate-in { 
+            animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; 
+        }
     </style>
 <script type="importmap">
 {

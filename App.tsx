@@ -6,6 +6,7 @@ import HomeView from './views/HomeView';
 import ConversationView from './views/ConversationView';
 import AuthView from './views/AuthView';
 import { getAdvisorStream } from './services/geminiService';
+import { translations } from './i18n';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.HOME);
@@ -61,7 +62,6 @@ const App: React.FC = () => {
       for await (const chunk of responseStream) {
         fullText += chunk.text || "";
         
-        // Extract grounding sources if any
         const groundingMetadata = chunk.candidates?.[0]?.groundingMetadata;
         if (groundingMetadata?.groundingChunks) {
           const newSources = groundingMetadata.groundingChunks
@@ -69,7 +69,6 @@ const App: React.FC = () => {
             .map(gc => ({ title: gc.web?.title || 'Source', uri: gc.web?.uri || '#' }));
           
           if (newSources.length > 0) {
-            // Merge unique sources
             sources = [...sources, ...newSources.filter(ns => !sources.some(s => s.uri === ns.uri))];
           }
         }
@@ -108,17 +107,24 @@ const App: React.FC = () => {
     }
   };
 
-  const createNewConversation = useCallback((initialMessage?: string, topic?: Topic) => {
+  const createNewConversation = useCallback((initialMessage?: string, topic?: Topic, hidden: boolean = false) => {
     const newId = Date.now().toString();
-    const newConv: Conversation = {
-      id: newId,
-      title: topic ? topic.title : (initialMessage ? initialMessage.slice(0, 20) : (lang === 'zh' ? '新对话' : 'New Chat')),
-      messages: initialMessage ? [{
+    const initialMsgs: Message[] = [];
+    
+    if (initialMessage) {
+      initialMsgs.push({
         id: Date.now().toString() + '-user',
         role: 'user',
         content: initialMessage,
-        timestamp: Date.now()
-      }] : [],
+        timestamp: Date.now(),
+        metadata: { hidden }
+      });
+    }
+
+    const newConv: Conversation = {
+      id: newId,
+      title: topic ? topic.title : (initialMessage ? initialMessage.slice(0, 20) : (lang === 'zh' ? '新咨询' : 'New Consulting')),
+      messages: initialMsgs,
       topicId: topic?.id,
       updatedAt: Date.now()
     };
@@ -127,10 +133,16 @@ const App: React.FC = () => {
     setActiveConversationId(newId);
     setView(AppView.CONVERSATION);
 
-    if (initialMessage) processAiReplyStream(newId, newConv.messages);
+    if (initialMessage) {
+      processAiReplyStream(newId, initialMsgs);
+    }
   }, [lang]);
 
-  const handleTopicClick = (topic: Topic) => createNewConversation(topic.prompt, topic);
+  const handleTopicClick = (topic: Topic) => {
+    // Direct dialog mode: Auto-send prompt but keep it hidden from UI
+    createNewConversation(topic.prompt, topic, true);
+  };
+
   const handleQuickSearch = (query: string) => createNewConversation(query);
   const handleDeleteConversation = (id: string) => {
     setConversations(prev => prev.filter(c => c.id !== id));
@@ -138,13 +150,16 @@ const App: React.FC = () => {
   };
 
   const handleSendMessage = async (content: string) => {
-    if (!activeConversationId) return;
+    if (!activeConversationId) {
+      createNewConversation(content);
+      return;
+    }
     const userMsg: Message = { id: Date.now().toString() + '-user', role: 'user', content, timestamp: Date.now() };
     let updatedHistory: Message[] = [];
     setConversations(prev => prev.map(c => {
       if (c.id === activeConversationId) {
         updatedHistory = [...c.messages, userMsg];
-        return { ...c, messages: updatedHistory, updatedAt: Date.now(), title: c.messages.length === 0 ? content.slice(0, 20) : c.title };
+        return { ...c, messages: updatedHistory, updatedAt: Date.now(), title: c.messages.length <= 1 ? content.slice(0, 20) : c.title };
       }
       return c;
     }));
@@ -155,7 +170,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (view) {
       case AppView.HOME: return <HomeView user={user} lang={lang} onTopicClick={handleTopicClick} onQuickSearch={handleQuickSearch} />;
-      case AppView.CONVERSATION: return activeConv ? <ConversationView conversation={activeConv} user={user} lang={lang} onSendMessage={handleSendMessage} isLoading={isAiLoading} /> : <HomeView user={user} lang={lang} onTopicClick={handleTopicClick} onQuickSearch={handleQuickSearch} />;
+      case AppView.CONVERSATION: return <ConversationView conversation={activeConv} user={user} lang={lang} onSendMessage={handleSendMessage} isLoading={isAiLoading} />;
       case AppView.LOGIN: return <AuthView type="login" lang={lang} onNavigate={handleNavigate} onAuthSuccess={handleAuthSuccess} />;
       case AppView.REGISTER: return <AuthView type="register" lang={lang} onNavigate={handleNavigate} onAuthSuccess={handleAuthSuccess} />;
       default: return <HomeView user={user} lang={lang} onTopicClick={handleTopicClick} onQuickSearch={handleQuickSearch} />;
@@ -167,8 +182,12 @@ const App: React.FC = () => {
       view={view} user={user} lang={lang} theme={theme}
       onNavigate={handleNavigate} onLogout={handleLogout} onToggleLang={toggleLang} onToggleTheme={toggleTheme}
       conversations={conversations} activeConversationId={activeConversationId}
-      onSelectConversation={(id) => { setActiveConversationId(id); setView(AppView.CONVERSATION); }}
-      onNewChat={() => { setActiveConversationId(null); setView(AppView.CONVERSATION); createNewConversation(); }}
+      onSelectConversation={(id) => { 
+        setActiveConversationId(id); 
+        if (id) setView(AppView.CONVERSATION); 
+        else setView(AppView.HOME);
+      }}
+      onNewChat={() => { setActiveConversationId(null); setView(AppView.CONVERSATION); }}
       onDeleteConversation={handleDeleteConversation}
     >
       {renderContent()}

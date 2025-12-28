@@ -22,6 +22,14 @@ export interface GroundingSource {
   uri: string;
 }
 
+export interface ChartData {
+  type: 'bar' | 'line' | 'pie';
+  title: string;
+  labels: string[];
+  values: number[];
+  unit?: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -29,6 +37,11 @@ export interface Message {
   timestamp: number;
   sources?: GroundingSource[];
   isStreaming?: boolean;
+  chartData?: ChartData;
+  suggestedQuestions?: string[];
+  metadata?: {
+    hidden?: boolean;
+  };
 }
 
 export interface Conversation {

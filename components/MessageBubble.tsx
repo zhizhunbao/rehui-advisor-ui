@@ -1,78 +1,190 @@
 
 import React, { useState, useMemo } from 'react';
-import { Message, Language } from '../types';
-import { Copy, Check } from 'lucide-react';
-import { translations } from '../i18n';
+import { Message, Language, ChartData } from '../types';
+import { 
+  Copy, Check, ExternalLink, CheckCircle2, UserSearch,
+  ThumbsUp, ThumbsDown, Share, RotateCw, MoreHorizontal
+} from 'lucide-react';
+import DataVisualizer from './DataVisualizer';
 
 interface MessageBubbleProps {
   message: Message;
   lang: Language;
+  onSuggestionClick?: (question: string) => void;
+  onRegenerate?: () => void;
 }
 
-const formatMarkdown = (content: string) => {
+const parseMessageContent = (content: string) => {
+  let chartData: ChartData | null = null;
+  const suggestedQuestions: string[] = [];
+  const options: string[] = [];
+  let currentStep = "";
+  
+  const stepMatch = content.match(/\[STEP:\s*(\d+\/\d+)\]/);
+  if (stepMatch) currentStep = stepMatch[1];
+
+  const chartMatch = content.match(/\[CHART_DATA:\s*(\{.*?\})\]/);
+  if (chartMatch) {
+    try { chartData = JSON.parse(chartMatch[1]); } catch (e) { console.warn("Chart parsing..."); }
+  }
+
+  const suggestMatches = Array.from(content.matchAll(/\[SUGGEST:\s*"(.*?)"\]/g));
+  suggestMatches.forEach(m => suggestedQuestions.push(m[1]));
+
+  const optionMatches = Array.from(content.matchAll(/\[OPTION:\s*"(.*?)"\]/g));
+  optionMatches.forEach(m => options.push(m[1]));
+
+  const cleanContent = content
+    .replace(/\[STEP:\s*\d+\/\d+\]/g, '')
+    .replace(/\[CHART_DATA:\s*\{.*?\}\]/g, '')
+    .replace(/\[SUGGEST:\s*".*?"\]/g, '')
+    .replace(/\[OPTION:\s*".*?"\]/g, '')
+    .trim();
+
+  return { cleanContent, chartData, suggestedQuestions, options, currentStep };
+};
+
+const formatMarkdown = (content: string, lang: Language) => {
   if (!content) return "";
   let html = content;
-  html = html.replace(/```([\s\S]*?)```/g, (_, code) => `<pre class="my-2 p-3 rounded-lg bg-black text-slate-300 font-mono text-[13px] border border-white/10 overflow-x-auto"><code>${code.trim()}</code></pre>`);
-  html = html.replace(/^### (.*$)/gm, '<h3 class="text-sm font-bold mt-2 mb-1 text-slate-900 dark:text-white">$1</h3>');
-  html = html.replace(/^## (.*$)/gm, '<h2 class="text-base font-bold mt-3 mb-2 text-slate-900 dark:text-white">$1</h2>');
-  html = html.replace(/^# (.*$)/gm, '<h1 class="text-lg font-bold mt-4 mb-3 text-slate-900 dark:text-white">$1</h1>');
-  html = html.replace(/^\s*[-*+]\s+(.*)$/gm, '<li class="ml-4 list-disc my-0.5">$1</li>');
-  html = html.replace(/^\s*\d+\.\s+(.*)$/gm, '<li class="ml-4 list-decimal my-0.5">$1</li>');
+  
+  const isZh = lang === 'zh';
+  const insightHeader = isZh ? 'STAGE 3: 核心洞察' : 'STAGE 3: CORE INSIGHT';
+  const reportHeader = isZh ? '深度调研报告' : 'RESEARCH SYNTHESIS';
+  
+  html = html.replace(/⚡️ \[(核心洞察|Core Insight)\]/g, `<div class="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">${insightHeader}</div>`);
+  html = html.replace(/💡 \[(深度报告|Depth Report)\]/g, `<div class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4 mt-10 flex items-center gap-2">${reportHeader}</div>`);
+  
+  html = html.replace(/(现在开始为您抓取|正在为您执行调研|Starting to crawl|I am now retrieving|Connecting to real-time)/g, '<span class="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-2 mb-2"><span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>$1</span>');
+
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900 dark:text-white">$1</strong>');
-  html = html.replace(/`([^`]+)`/g, '<code class="bg-slate-100 dark:bg-white/10 px-1 py-0.5 rounded font-mono text-[12px] text-blue-600 dark:text-blue-400">$1</code>');
+  html = html.replace(/^### (.*$)/gm, '<h3 class="text-xl font-extrabold mt-10 mb-4 text-slate-900 dark:text-white tracking-tight">$1</h3>');
+  html = html.replace(/^\s*[-*+]\s+(.*)$/gm, '<li class="ml-4 list-disc my-3 pl-2 text-slate-700 dark:text-slate-300">$1</li>');
+  
   return html.split('\n\n').map(p => {
     if (p.trim().startsWith('<')) return p;
-    return `<p class="mb-1 leading-relaxed last:mb-0">${p.replace(/\n/g, '<br/>')}</p>`;
+    return `<p class="mb-4 leading-[1.7] text-slate-700 dark:text-slate-200 last:mb-0">${p.replace(/\n/g, '<br/>')}</p>`;
   }).join('');
 };
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ message, lang }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = ({ message, lang, onSuggestionClick, onRegenerate }) => {
+  if (message.metadata?.hidden) return null;
+
   const isAssistant = message.role === 'assistant';
   const [copied, setCopied] = useState(false);
-  const formattedContent = useMemo(() => formatMarkdown(message.content), [message.content]);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(message.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const { cleanContent, chartData, suggestedQuestions, options, currentStep } = useMemo(() => 
+    parseMessageContent(message.content), [message.content]
+  );
+  
+  const formattedContent = useMemo(() => formatMarkdown(cleanContent, lang), [cleanContent, lang]);
 
   return (
-    <div className={`w-full group px-4 flex flex-col ${isAssistant ? 'items-start' : 'items-end'} mb-6`}>
-      <div className={`max-w-3xl w-full flex ${isAssistant ? 'justify-start' : 'justify-end'}`}>
-        <div className={`
-          prose prose-slate dark:prose-invert max-w-full text-[15px]
-          ${!isAssistant 
-            ? 'bg-[#f4f4f4] dark:bg-[#343541] px-4 py-2.5 rounded-[22px] text-slate-900 dark:text-slate-100 inline-block' 
-            : 'text-slate-800 dark:text-slate-200'
-          }
-        `}>
-          <div dangerouslySetInnerHTML={{ __html: formattedContent }} />
-          {isAssistant && message.isStreaming && (
-            <span className="inline-block w-2 h-4 ml-1 bg-slate-400 animate-pulse align-middle" />
-          )}
-        </div>
-      </div>
+    <div className={`w-full flex justify-center py-4 animate-in fade-in duration-500`}>
+      <div className={`w-full max-w-3xl px-4 flex gap-4 ${!isAssistant ? 'flex-row-reverse' : 'flex-row'}`}>
+        {isAssistant && (
+          <div className="flex-shrink-0 pt-1 hidden sm:block">
+            <div className="w-8 h-8 rounded-lg bg-slate-900 dark:bg-white/10 flex items-center justify-center border border-slate-200 dark:border-white/5 shadow-sm">
+              <UserSearch className="w-4 h-4 text-white dark:text-slate-200" />
+            </div>
+          </div>
+        )}
 
-      {isAssistant && !message.isStreaming && (
-        <div className="max-w-3xl w-full mt-2 flex items-center gap-4">
-          <button 
-            onClick={handleCopy} 
-            className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-all"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-          </button>
-          {message.sources && message.sources.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {message.sources.map((s, i) => (
-                <a key={i} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 px-1.5 py-0.5 rounded text-slate-400 hover:text-blue-500 transition-colors">
-                  {i + 1}
-                </a>
-              ))}
+        <div className={`flex-1 min-w-0 ${!isAssistant ? 'flex flex-col items-end' : ''}`}>
+          {isAssistant && currentStep && !message.isStreaming && (
+            <div className="flex items-center gap-2 mb-3">
+               <div className="bg-blue-600/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                 {lang === 'zh' ? '维度确认' : 'Step'} {currentStep}
+               </div>
+            </div>
+          )}
+
+          <div className={`
+            text-[15px] max-w-full
+            ${!isAssistant 
+              ? 'bg-[#3c3c3c] dark:bg-[#2f2f2f] rounded-[1.2rem] px-5 py-3 text-white shadow-sm inline-block' 
+              : 'w-full text-slate-800 dark:text-slate-200'
+            }
+          `}>
+            <div className="markdown-content" dangerouslySetInnerHTML={{ __html: formattedContent }} />
+            
+            {isAssistant && options.length > 0 && !message.isStreaming && (
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                {options.map((opt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => onSuggestionClick?.(opt)}
+                    className="flex items-center justify-between text-left px-4 py-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:border-blue-500 hover:bg-blue-50/30 dark:hover:bg-blue-500/5 transition-all group active:scale-[0.98]"
+                  >
+                    <span className="font-semibold text-[13px]">{opt}</span>
+                    <CheckCircle2 className="w-4 h-4 text-slate-200 dark:text-white/10 group-hover:text-blue-500 transition-colors" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {isAssistant && chartData && chartData.values?.length > 0 && <DataVisualizer data={chartData} lang={lang} />}
+            {isAssistant && message.isStreaming && <span className="inline-block w-1 h-5 ml-1 bg-blue-500/40 rounded-full animate-pulse align-middle" />}
+          </div>
+
+          {isAssistant && !message.isStreaming && (
+            <div className="mt-4 flex flex-col gap-4">
+              {(suggestedQuestions.length > 0 || (message.sources && message.sources.length > 0)) && (
+                 <div className="space-y-4 border-l-2 border-slate-100 dark:border-white/5 pl-4 py-1">
+                    {suggestedQuestions.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {suggestedQuestions.map((q, i) => (
+                          <button key={i} onClick={() => onSuggestionClick?.(q)} className="text-[12px] px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors font-medium">
+                            {q}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {message.sources && message.sources.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {message.sources.map((s, i) => (
+                          <a key={i} href={s.uri} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[11px] text-blue-500 hover:underline">
+                            <ExternalLink className="w-3 h-3" />
+                            <span className="truncate max-w-[150px]">{s.title}</span>
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                 </div>
+              )}
+
+              <div className="flex items-center gap-1 text-slate-400">
+                <button 
+                  onClick={() => { navigator.clipboard.writeText(cleanContent); setCopied(true); setTimeout(() => setCopied(false), 2000); }} 
+                  className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
+                  title="Copy"
+                >
+                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                </button>
+                <button className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" title="Like">
+                  <ThumbsUp className="w-4 h-4" />
+                </button>
+                <button className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" title="Dislike">
+                  <ThumbsDown className="w-4 h-4" />
+                </button>
+                <button className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" title="Share">
+                  <Share className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={onRegenerate}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" 
+                  title="Regenerate"
+                >
+                  <RotateCw className="w-4 h-4" />
+                </button>
+                <button className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" title="More">
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 };
